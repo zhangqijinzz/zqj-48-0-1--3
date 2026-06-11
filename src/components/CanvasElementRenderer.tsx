@@ -5,8 +5,10 @@ import { hexToRgba } from '@/lib/colorUtils';
 interface CanvasElementRendererProps {
   element: CanvasElement;
   isSelected: boolean;
-  onSelect: () => void;
+  selectedCount: number;
+  onSelect: (e: React.MouseEvent) => void;
   onMove: (x: number, y: number) => void;
+  onMultiDrag: (dx: number, dy: number) => void;
   onResize: (width: number, height: number) => void;
   onUpdate: (updates: Partial<CanvasElement>) => void;
 }
@@ -14,8 +16,10 @@ interface CanvasElementRendererProps {
 export default function CanvasElementRenderer({
   element,
   isSelected,
+  selectedCount,
   onSelect,
   onMove,
+  onMultiDrag,
   onResize,
   onUpdate,
 }: CanvasElementRendererProps) {
@@ -23,7 +27,7 @@ export default function CanvasElementRenderer({
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0, elemX: 0, elemY: 0 });
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0, elemX: 0, elemY: 0, lastX: 0, lastY: 0 });
   const [resizeStart, setResizeStart] = useState({ startX: 0, startY: 0, startW: 0, startH: 0 });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -37,9 +41,14 @@ export default function CanvasElementRenderer({
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isDragging) {
-        const dx = e.clientX - dragStart.x;
-        const dy = e.clientY - dragStart.y;
-        onMove(dragStart.elemX + dx, dragStart.elemY + dy);
+        const dx = e.clientX - dragStart.lastX;
+        const dy = e.clientY - dragStart.lastY;
+        if (selectedCount > 1) {
+          onMultiDrag(dx, dy);
+        } else {
+          onMove(dragStart.elemX + (e.clientX - dragStart.x), dragStart.elemY + (e.clientY - dragStart.y));
+        }
+        setDragStart((prev) => ({ ...prev, lastX: e.clientX, lastY: e.clientY }));
       }
       if (isResizing) {
         const dx = e.clientX - resizeStart.startX;
@@ -64,17 +73,19 @@ export default function CanvasElementRenderer({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, isResizing, dragStart, resizeStart, onMove, onResize]);
+  }, [isDragging, isResizing, dragStart, resizeStart, selectedCount, onMove, onMultiDrag, onResize]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
     e.stopPropagation();
-    onSelect();
+    onSelect(e);
     if (!isEditing) {
       setIsDragging(true);
       setDragStart({
         x: e.clientX,
         y: e.clientY,
+        lastX: e.clientX,
+        lastY: e.clientY,
         elemX: element.x,
         elemY: element.y,
       });
@@ -242,7 +253,7 @@ export default function CanvasElementRenderer({
         )}
       </div>
 
-      {isSelected && !isEditing && (
+      {isSelected && !isEditing && selectedCount === 1 && (
         <>
           <div
             className="absolute bottom-0 right-0 h-4 w-4 cursor-nwse-resize rounded-sm bg-blue-500 shadow-md"

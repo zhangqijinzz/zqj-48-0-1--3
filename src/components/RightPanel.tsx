@@ -3,7 +3,6 @@ import { Palette, Layers, Settings2, Download, Trash2, Copy, ArrowUpToLine, Arro
 import { useCanvasStore } from '@/store/canvasStore';
 import { themeList } from '@/data/themes';
 import type { ThemeId } from '@/types';
-import { hexToRgba } from '@/lib/colorUtils';
 
 type Tab = 'properties' | 'themes' | 'palette';
 
@@ -11,6 +10,7 @@ export default function RightPanel({ onExport }: { onExport: () => void }) {
   const [activeTab, setActiveTab] = useState<Tab>('properties');
   const {
     selectedElementId,
+    selectedElementIds,
     elements,
     currentThemeId,
     colorPalette,
@@ -18,14 +18,20 @@ export default function RightPanel({ onExport }: { onExport: () => void }) {
     setTheme,
     setPrimaryColor,
     updateElement,
+    updateElements,
     deleteElement,
+    deleteElements,
     duplicateElement,
     bringToFront,
+    bringToFrontMultiple,
     sendToBack,
+    sendToBackMultiple,
     clearCanvas,
   } = useCanvasStore();
 
   const selectedElement = elements.find((e) => e.id === selectedElementId);
+  const hasSingleSelection = selectedElementIds.length === 1;
+  const hasMultiSelection = selectedElementIds.length > 1;
 
   const tabs = [
     { id: 'properties' as Tab, name: '属性', icon: Settings2 },
@@ -33,7 +39,96 @@ export default function RightPanel({ onExport }: { onExport: () => void }) {
     { id: 'palette' as Tab, name: '色板', icon: Palette },
   ];
 
+  const getMultiOpacity = () => {
+    const selected = elements.filter((e) => selectedElementIds.includes(e.id));
+    if (selected.length === 0) return 100;
+    const opacities = selected.map((e) => e.opacity ?? 1);
+    const allSame = opacities.every((o) => o === opacities[0]);
+    return allSame ? Math.round(opacities[0] * 100) : 50;
+  };
+
+  const renderMultiSelection = () => {
+    const opacityValue = getMultiOpacity();
+
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center gap-3 rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500 text-white shadow-lg shadow-blue-500/25">
+            <span className="text-xl font-bold">{selectedElementIds.length}</span>
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-semibold text-gray-800">已选中 {selectedElementIds.length} 个元素</h3>
+            <p className="text-xs text-gray-500">可批量调整不透明度、层级或删除</p>
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => bringToFrontMultiple(selectedElementIds)}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
+            title="全部置顶"
+          >
+            <ArrowUpToLine className="h-3.5 w-3.5" />
+            置顶
+          </button>
+          <button
+            onClick={() => sendToBackMultiple(selectedElementIds)}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
+            title="全部置底"
+          >
+            <ArrowDownToLine className="h-3.5 w-3.5" />
+            置底
+          </button>
+          <button
+            onClick={() => {
+              if (confirm(`确定要删除选中的 ${selectedElementIds.length} 个元素吗？`)) {
+                deleteElements(selectedElementIds);
+              }
+            }}
+            className="flex items-center justify-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
+            title="批量删除"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            删除
+          </button>
+        </div>
+
+        <div>
+          <label className="mb-1.5 flex items-center justify-between text-xs font-medium text-gray-600">
+            <span>不透明度</span>
+            <span className="text-[10px] text-gray-400">{opacityValue}%</span>
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={opacityValue}
+            onChange={(e) => updateElements(selectedElementIds, { opacity: Number(e.target.value) / 100 })}
+            className="w-full"
+          />
+        </div>
+
+        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3">
+          <h4 className="mb-1 flex items-center gap-1 text-xs font-semibold text-amber-800">
+            💡 多选操作提示
+          </h4>
+          <ul className="space-y-1 text-[11px] leading-relaxed text-amber-900/80">
+            <li>• 按住 Shift 或 Ctrl/Cmd 点击可多选</li>
+            <li>• 在画布空白处拖拽可框选多个元素</li>
+            <li>• 拖拽任意选中元素可整体移动</li>
+            <li>• 按 Delete 键可删除全部选中元素</li>
+            <li>• 按 Ctrl/Cmd+A 可全选画布元素</li>
+          </ul>
+        </div>
+      </div>
+    );
+  };
+
   const renderProperties = () => {
+    if (hasMultiSelection) {
+      return renderMultiSelection();
+    }
+
     if (!selectedElement) {
       return (
         <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -42,6 +137,7 @@ export default function RightPanel({ onExport }: { onExport: () => void }) {
           </div>
           <p className="mt-4 text-sm font-medium text-gray-600">选中元素后编辑属性</p>
           <p className="mt-1 text-xs text-gray-400">点击画布中的任意元素</p>
+          <p className="mt-1 text-xs text-gray-400">按住 Shift 或 Ctrl/Cmd 可多选</p>
 
           <div className="mt-8 w-full border-t border-gray-100 pt-6">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">画布操作</h3>
@@ -522,7 +618,7 @@ export default function RightPanel({ onExport }: { onExport: () => void }) {
           导出海报图片
         </button>
         <p className="mt-2 text-center text-[10px] text-gray-400">
-          快捷键: Del 删除 · Ctrl+D 复制 · Esc 取消选中
+          快捷键: Del 删除 · Ctrl+D 复制 · Esc 取消 · Ctrl+A 全选
         </p>
       </div>
     </div>
