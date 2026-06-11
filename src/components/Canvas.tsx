@@ -87,7 +87,6 @@ const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({ className = '' }, ref)
   };
 
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
-    if (e.target !== e.currentTarget) return;
     if (e.button !== 0) return;
 
     const isMultiSelectKey = e.shiftKey || e.metaKey || e.ctrlKey;
@@ -243,12 +242,12 @@ const Canvas = forwardRef<HTMLDivElement, CanvasProps>(({ className = '' }, ref)
           minHeight: canvasHeight,
           ...getPatternStyle(),
         }}
-        onMouseDown={handleCanvasMouseDown}
       >
         <div
           ref={canvasContainerRef}
           className="absolute inset-0"
           style={{ width: canvasWidth, height: canvasHeight }}
+          onMouseDown={handleCanvasMouseDown}
         >
           {elements.map((element) => (
             <CanvasElementRenderer
